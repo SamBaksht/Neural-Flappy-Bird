@@ -8,7 +8,9 @@ document.body.appendChild(gameCanvas);
 const ctx = gameCanvas.getContext("2d");
 
 class Game {
-   /*
+   static pipes = [];
+   
+    /*
    Instance Variables:
    birdGenerations -> Number of generations since the first
    gameSpeed -> Overall speed of the simulation
@@ -18,36 +20,44 @@ class Game {
         this.birdGenerations = 0;
         this.gameSpeed = 1;
         this.bestBird = null;
-        this.pipes = []
-        this.birds = []
+        this.birds = [];
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                this.handleFlap();
+            }
+        });
+        
     }
-
+    handleFlap() {
+        this.birds[0].flap();
+    }
     updateSpeed(newSpeed) {
         if(newSpeed < 0 ) {
             return;
         }
         this.gameSpeed = newSpeed;
     }
+    
 
     newGeneration() {
         this.birdGenerations++;
-        this.pipes = [];
-        this.birds = []
+        Game.pipes = [];
+        this.birds = [];
         for(let i = 0; i < 1; i++) {
             this.birds.push(new Bird());
-        }
-    }
+        };
+    };
 
     continue() {
         if (this.birds.length === 0) { // Check to see if all birds have collided
-            this.newGeneration()
+            this.newGeneration();
             return;
-        }
+        };
        
         // To start off every generation
-        if (this.pipes.length === 0) {
-            this.pipes.push(new Pipe())
-        }
+        if (Game.pipes.length === 0) {
+            Game.pipes.push(new Pipe())
+        };
 
 
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
@@ -56,27 +66,27 @@ class Game {
         gameCanvas.width = window.innerWidth;
         gameCanvas.height = window.innerHeight;
 
-        for(let i = 0; i < this.pipes.length; i++) {
-            if(this.pipes[i].xPosition < -0.1) { // If offscreen
-                this.pipes.shift();
+        for(let i = 0; i < Game.pipes.length; i++) {
+            if(Game.pipes[i].xPosition < -0.1) { // If offscreen
+                Game.pipes.shift();
                 i--;
                 continue;
-            } else if (this.pipes[i].positionCheck()) { // if it should create another pipe
-                this.pipes.push(new Pipe);
-            }
-            this.pipes[i].update(); 
-        }
+            } else if (Game.pipes[i].positionCheck()) { // if it should create another pipe
+                Game.pipes.push(new Pipe);
+            };
+            Game.pipes[i].update(); 
+        };
 
         for (let i = 0; i < this.birds.length; i++) {
             if (this.birds[i].checkCollision()) {
                 this.birds.splice(i, 1);
                 i--;
                 continue;
-            }
+            };
             this.birds[i].update();
-        }
-    }
-}
+        };
+    };
+};
 
 
 class Pipe {
@@ -97,14 +107,13 @@ class Pipe {
         // Represents 100% of the screenWidth, each frame we will move the pipe 1% to the left until xPosition < 0
         this.xPosition = 1;
 
-        this.madeAnotherPipe = false;
-        
-    }
+        this.madeAnotherPipe = false; 
+    };
 
     update() {
         this.xPosition -= 0.005; // Moves 0.5% across the x axis each frame.
         this.drawOnCanvas();
-    }
+    };
 
 
     drawOnCanvas() {
@@ -123,7 +132,7 @@ class Pipe {
             pipeWidth,
             gameCanvas.height - (this.height + (gameCanvas.height * 0.1))  // Height - Upper pipe + 10%
         );
-    }
+    };
 
     positionCheck() {
         if(this.xPosition < 0.5 && !this.madeAnotherPipe) {
@@ -131,7 +140,7 @@ class Pipe {
             return true;
         }
         return false;
-    }
+    };
 }
 
 class Bird {
@@ -155,13 +164,17 @@ class Bird {
     yVelocity -> The combined amount of gravity after each tick
     */
     constructor() {
-        this.color = Bird.colors[parseInt(Math.random() * 8)]
+        this.color = Bird.colors[parseInt(Math.random() * Bird.colors.length)]
         this.xPosition = 0.25 * gameCanvas.width;
         this.yPosition = 0.5;
         this.gravity = 0.00009;
         this.yVelocity = 0;
-    }
+    };
 
+    flap() {
+        this.yVelocity = -0.00385;  
+    };
+     
     update() {
         this.yVelocity += this.gravity;
         // console.log(`yPosition: ${this.yPosition} | Gravity: ${this.yVelocity}`)
@@ -169,15 +182,30 @@ class Bird {
         
         
         this.draw();
-    }
+    };
 
     checkCollision() {
         if(this.yPosition < 0 || this.yPosition > 1) { // Check if offscreen
             console.log("Bird Collided!")
             return true;
-        }
+        };
+        for(let pipe of Game.pipes) {
+            if (pipe.xPosition < 0.3) { // Reference only the pipes close infront / in the back
+                const yPosition = this.yPosition * gameCanvas.height;
+                const tenPercent = gameCanvas.height * 0.1;
+                if (
+                (yPosition < (pipe.height - tenPercent) || yPosition > (pipe.height + tenPercent)) // If same Y Position
+                && 
+                this.xPosition >= pipe.xPosition * gameCanvas.width  // Start x range of the pipe (xPosPipeStart < xPosBird < xPosPipeEnd)
+                && 
+                this.xPosition <= (pipe.xPosition * gameCanvas.width + (gameCanvas.width * 0.075)) // End x range of the pipe
+                ) { 
+                    return true;
+                };
+            };
+        };
         return false;
-    }
+    };
 
     draw() {
         this.xPosition = 0.25 * gameCanvas.width; 
@@ -191,9 +219,10 @@ class Bird {
             Math.PI * 2 // End Angle
         )
         ctx.fill();
-    }
-}
+    };
+};
 
 const game = new Game();
-const gameLoop = setInterval(() => game.continue(), 1000 / 60) // 60 FPS (Ignores refresh rate of monitor)
+const gameLoop = setInterval(() => game.continue(), 1000 / 60); // 60 FPS (Ignores refresh rate of monitor)
+
 
