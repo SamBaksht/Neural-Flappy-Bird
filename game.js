@@ -9,26 +9,34 @@ const ctx = gameCanvas.getContext("2d");
 
 class Pipe {
    
+    /*
+    Instance Variables: 
+    height -> Determines how far down the upper pipe will go.
+    xPosition -> Starts at the right hand side of the screen, then travels off at x = 0
+    madeAnotherPipe -> When a pipe hits an xPos < 0.5, we will make another pipe assuming it hasnt already made another one.
+    */
     constructor() {
         /*
         Min possible height is 15% of screen height
         Max possible height is 85% of screen height
         */
-        this.height = Math.random() * (gameCanvas.height * 0.70) + 0.15;
+        this.height = Math.random() * (gameCanvas.height * 0.70) + (gameCanvas.height * 0.15);
         
         // Represents 100% of the screenWidth, each frame we will move the pipe 1% to the left until xPosition < 0
         this.xPosition = 1;
+
+        this.madeAnotherPipe = false;
         
     }
 
     update() {
-        this.xPosition -= 0.01;
+        this.xPosition -= 0.005; // Moves 0.5% across the x axis each frame.
         this.drawOnCanvas();
-        console.log(this.height)
     }
 
+
     drawOnCanvas() {
-        const pipeWidth = gameCanvas.width * 0.1; 
+        const pipeWidth = gameCanvas.width * 0.075; 
         // Pipe the starts from top -> 
         ctx.fillRect(
             (this.xPosition * gameCanvas.width), // X Position
@@ -45,7 +53,13 @@ class Pipe {
         );
     }
 
-
+    positionCheck() {
+        if(this.xPosition < 0.5 && !this.madeAnotherPipe) {
+            this.madeAnotherPipe = true;
+            return true;
+        }
+        return false;
+    }
 
 }
 
@@ -77,8 +91,9 @@ class Game {
     }
 
     continue() {
+        // To start off every generation
         if (this.pipes.length === 0) {
-
+            this.pipes.push(new Pipe())
         }
 
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
@@ -87,9 +102,16 @@ class Game {
         gameCanvas.width = window.innerWidth;
         gameCanvas.height = window.innerHeight;
 
-        this.pipes.map(pipe => {
-            pipe.update();
-        });
+        for(let i = 0; i < this.pipes.length; i++) {
+            if(this.pipes[i].xPosition < -0.1) { // If offscreen
+                this.pipes.shift();
+                i--;
+                continue;
+            } else if (this.pipes[i].positionCheck()) { // if it should create another pipe
+                this.pipes.push(new Pipe);
+            }
+            this.pipes[i].update(); 
+        }
     }
 
 }
