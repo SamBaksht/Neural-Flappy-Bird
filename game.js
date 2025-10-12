@@ -7,6 +7,78 @@ gameCanvas.height = window.innerHeight;
 document.body.appendChild(gameCanvas);
 const ctx = gameCanvas.getContext("2d");
 
+class Game {
+   /*
+   Instance Variables:
+   birdGenerations -> Number of generations since the first
+   gameSpeed -> Overall speed of the simulation
+   bestBird -> Starts as null, becomes bird with the highest score.
+   */
+    constructor() {
+        this.birdGenerations = 0;
+        this.gameSpeed = 1;
+        this.bestBird = null;
+        this.pipes = []
+        this.birds = []
+    }
+
+    updateSpeed(newSpeed) {
+        if(newSpeed < 0 ) {
+            return;
+        }
+        this.gameSpeed = newSpeed;
+    }
+
+    newGeneration() {
+        this.birdGenerations++;
+        this.pipes = [];
+        this.birds = []
+        for(let i = 0; i < 1; i++) {
+            this.birds.push(new Bird());
+        }
+    }
+
+    continue() {
+        if (this.birds.length === 0) { // Check to see if all birds have collided
+            this.newGeneration()
+            return;
+        }
+       
+        // To start off every generation
+        if (this.pipes.length === 0) {
+            this.pipes.push(new Pipe())
+        }
+
+
+        ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+       
+        // Reassign width/height incase window resizes
+        gameCanvas.width = window.innerWidth;
+        gameCanvas.height = window.innerHeight;
+
+        for(let i = 0; i < this.pipes.length; i++) {
+            if(this.pipes[i].xPosition < -0.1) { // If offscreen
+                this.pipes.shift();
+                i--;
+                continue;
+            } else if (this.pipes[i].positionCheck()) { // if it should create another pipe
+                this.pipes.push(new Pipe);
+            }
+            this.pipes[i].update(); 
+        }
+
+        for (let i = 0; i < this.birds.length; i++) {
+            if (this.birds[i].checkCollision()) {
+                this.birds.splice(i, 1);
+                i--;
+                continue;
+            }
+            this.birds[i].update();
+        }
+    }
+}
+
+
 class Pipe {
    
     /*
@@ -37,7 +109,7 @@ class Pipe {
 
     drawOnCanvas() {
         const pipeWidth = gameCanvas.width * 0.075; 
-        // Pipe the starts from top -> 
+        // Pipe that starts from top -> 
         ctx.fillRect(
             (this.xPosition * gameCanvas.width), // X Position
             0, // Y position (top of screen)
@@ -60,62 +132,67 @@ class Pipe {
         }
         return false;
     }
-
 }
 
-class Game {
-   /*
-   Instance Variables:
-   birdGenerations -> Number of generations since the first
-   gameSpeed -> Overall speed of the simulation
-   bestBird -> Starts as null, becomes bird with the highest score.
-   */
+class Bird {
+    static colors = [
+        'rgba(255, 0, 0, 0.8)',    // Red
+        'rgba(0, 255, 0, 0.8)',    // Green
+        'rgba(0, 0, 255, 0.8)',    // Blue
+        'rgba(255, 255, 0, 0.8)',  // Yellow
+        'rgba(0, 255, 255, 0.8)',  // Cyan
+        'rgba(255, 0, 255, 0.8)',  // Magenta
+        'rgba(192, 192, 192, 0.8)',// Silver
+        'rgba(128, 0, 128, 0.8)'   // Purple
+    ];
+
+    /* 
+    Instance Variables:
+    color -> One of the random colors above
+    xPosition -> 25% of the way to the end of the screen (Recalculated every tick incase of window size change)
+    yPosition -> Centered in the screen vertically, this has physic logic applied to it every tick.
+    gravity -> Constant rate of change applied to yPos (reset when a bird flaps)
+    yVelocity -> The combined amount of gravity after each tick
+    */
     constructor() {
-        this.birdGenerations = 0;
-        this.gameSpeed = 1;
-        this.bestBird = null;
-        this.pipes = []
+        this.color = Bird.colors[parseInt(Math.random() * 8)]
+        this.xPosition = 0.25 * gameCanvas.width;
+        this.yPosition = 0.5;
+        this.gravity = 0.00009;
+        this.yVelocity = 0;
     }
 
-    updateSpeed(newSpeed) {
-        if(newSpeed < 0 ) {
-            return;
-        }
-        this.gameSpeed = newSpeed;
-    }
-
-    newGeneration() {
-        this.birdGenerations++;
-        this.pipes = [];
+    update() {
+        this.yVelocity += this.gravity;
+        // console.log(`yPosition: ${this.yPosition} | Gravity: ${this.yVelocity}`)
+        this.yPosition += this.yVelocity;
         
+        
+        this.draw();
     }
 
-    continue() {
-        // To start off every generation
-        if (this.pipes.length === 0) {
-            this.pipes.push(new Pipe())
+    checkCollision() {
+        if(this.yPosition < 0 || this.yPosition > 1) { // Check if offscreen
+            console.log("Bird Collided!")
+            return true;
         }
-
-        ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
-       
-        // Reassign width/height incase window resizes
-        gameCanvas.width = window.innerWidth;
-        gameCanvas.height = window.innerHeight;
-
-        for(let i = 0; i < this.pipes.length; i++) {
-            if(this.pipes[i].xPosition < -0.1) { // If offscreen
-                this.pipes.shift();
-                i--;
-                continue;
-            } else if (this.pipes[i].positionCheck()) { // if it should create another pipe
-                this.pipes.push(new Pipe);
-            }
-            this.pipes[i].update(); 
-        }
+        return false;
     }
 
+    draw() {
+        this.xPosition = 0.25 * gameCanvas.width; 
+        ctx.beginPath();
+        ctx.fillStyle = this.color;
+        ctx.arc(
+            this.xPosition,
+            gameCanvas.height * this.yPosition,
+            gameCanvas.width * 0.02 , // Radius
+            0, // Start angle
+            Math.PI * 2 // End Angle
+        )
+        ctx.fill();
+    }
 }
-
 
 const game = new Game();
 const gameLoop = setInterval(() => game.continue(), 1000 / 60) // 60 FPS (Ignores refresh rate of monitor)
