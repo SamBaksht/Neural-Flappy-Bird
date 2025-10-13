@@ -1,15 +1,16 @@
 
-// initialize game canvas
+// Initialize game canvas
 const gameCanvas = document.createElement("canvas");
 gameCanvas.style = "position: fixed;";
 gameCanvas.width = window.innerWidth;
 gameCanvas.height = window.innerHeight;
 document.body.appendChild(gameCanvas);
 const ctx = gameCanvas.getContext("2d");
-
+const NUM_BIRDS = 1000;
 class Game {
    static pipes = [];
-   
+   static playerBird;
+   static deadBirds = [];
     /*
    Instance Variables:
    birdGenerations -> Number of generations since the first
@@ -29,7 +30,7 @@ class Game {
         
     }
     handleFlap() {
-        this.birds[0].flap();
+        Game.playerBird.flap();
     }
     updateSpeed(newSpeed) {
         if(newSpeed < 0 ) {
@@ -42,14 +43,34 @@ class Game {
     newGeneration() {
         this.birdGenerations++;
         Game.pipes = [];
-        this.birds = [];
-        for(let i = 0; i < 1; i++) {
-            this.birds.push(new Bird());
-        };
+
+        if(this.birdGenerations === 1) {
+            for(let i = 0; i < NUM_BIRDS ; i++) {
+                this.birds.push(new Bird());
+            };
+            Game.playerBird = new Bird(true);
+            return;
+        }
+
+        Game.deadBirds.sort((a, b) => b.score - a.score); // sort in terms of best score
+        
+        const parents = Game.deadBirds.slice(0, 10).map(bird => {
+            bird.yPosition = 0.5;
+            bird.yVelocity = 0;
+            bird.score = 0;
+            return bird;
+        });
+
+        for(let i = 0; i < NUM_BIRDS - 1; i++) {
+            let newBird = new Bird();
+            newBird.brain = mutate(parents[Math.floor(Math.random() * parents.length)].brain)
+            this.birds.push(newBird)
+        }
+        this.birds.push(parents[0]) // Copy highest scorer from old gen
     };
 
     continue() {
-        if (this.birds.length === 0) { // Check to see if all birds have collided
+        if (this.birds.length === 0 && (!Game.playerBird || !Game.playerBird.alive)) { // Check to see if all birds have collided
             this.newGeneration();
             return;
         };
@@ -79,18 +100,24 @@ class Game {
 
         for (let i = 0; i < this.birds.length; i++) {
             if (this.birds[i].checkCollision()) {
+                Game.deadBirds.push(this.birds[i])
                 this.birds.splice(i, 1);
                 i--;
+                console.log(`Birds alive: ${this.birds.length}`)
                 continue;
             };
             this.birds[i].update();
         };
+        if(Game.playerBird.checkCollision() || Game.playerBird.alive === false){
+            Game.playerBird.alive = false;
+        } else {
+            Game.playerBird.update()
+        }
     };
 };
 
 
 class Pipe {
-   
     /*
     Instance Variables: 
     height -> Determines how far down the upper pipe will go.
@@ -99,14 +126,14 @@ class Pipe {
     */
     constructor() {
         /*
-        Min possible height is 15% of screen height
+        Min possible height is 17.5% of screen height
         Max possible height is 85% of screen height
         */
-        this.height = Math.random() * (gameCanvas.height * 0.70) + (gameCanvas.height * 0.15);
-        
+        // this.height = Math.random() * (gameCanvas.height * 0.675) + (gameCanvas.height * 0.175);
+        this.height = Math.random()
         // Represents 100% of the screenWidth, each frame we will move the pipe 1% to the left until xPosition < 0
         this.xPosition = 1;
-
+        this.pixelHeight = this.height * (gameCanvas.height * 0.675) + (gameCanvas.height * 0.175);
         this.madeAnotherPipe = false; 
     };
 
@@ -117,25 +144,27 @@ class Pipe {
 
 
     drawOnCanvas() {
+        this.pixelHeight = this.height * (gameCanvas.height * 0.675) + (gameCanvas.height * 0.175)
         const pipeWidth = gameCanvas.width * 0.075; 
         // Pipe that starts from top -> 
+        ctx.fillStyle = " rgb(1, 43, 6)"
         ctx.fillRect(
             (this.xPosition * gameCanvas.width), // X Position
             0, // Y position (top of screen)
             pipeWidth, 
-            (this.height - (gameCanvas.height * 0.1)) // height - 10% 
+            (this.pixelHeight - (gameCanvas.height * 0.125)) // height - 12.5% 
         );
         // Pipe that starts from height + 10% (lower pipe) ->
         ctx.fillRect(
             (this.xPosition * gameCanvas.width), // X Position
-            (this.height + (gameCanvas.height * 0.1)), // Y position (height + 10%)
+            (this.pixelHeight + (gameCanvas.height * 0.125)), // Y position (height + 12.5%)
             pipeWidth,
-            gameCanvas.height - (this.height + (gameCanvas.height * 0.1))  // Height - Upper pipe + 10%
+            gameCanvas.height - (this.pixelHeight + (gameCanvas.height * 0.125))  // Height - Upper pipe + 12.5%
         );
     };
 
     positionCheck() {
-        if(this.xPosition < 0.5 && !this.madeAnotherPipe) {
+        if(this.xPosition < 0.35 && !this.madeAnotherPipe) {
             this.madeAnotherPipe = true;
             return true;
         }
@@ -163,42 +192,63 @@ class Bird {
     gravity -> Constant rate of change applied to yPos (reset when a bird flaps)
     yVelocity -> The combined amount of gravity after each tick
     */
-    constructor() {
+    constructor(player = false) {
         this.color = Bird.colors[parseInt(Math.random() * Bird.colors.length)]
-        this.xPosition = 0.25 * gameCanvas.width;
+        this.xPosition = 0.25;
         this.yPosition = 0.5;
-        this.gravity = 0.00009;
+        this.gravity = 0.000145;
         this.yVelocity = 0;
+        this.brain = new Network();
+        if(player) {
+            this.brain = null;
+            this.player = true;
+            this.alive = true;
+        };
+        this.score = 0;
     };
 
     flap() {
-        this.yVelocity = -0.00385;  
+        if(this.yVelocity < -0.002) { 
+            this.yVelocity = -0.0055 // buffer for extra height
+        } else {
+            this.yVelocity = -0.005;
+        }
     };
      
     update() {
+        this.score++;
         this.yVelocity += this.gravity;
-        // console.log(`yPosition: ${this.yPosition} | Gravity: ${this.yVelocity}`)
         this.yPosition += this.yVelocity;
-        
-        
+        let nextPipe;
+        for(let pipe of Game.pipes) {
+            if(pipe.xPosition < 0.25) {
+                continue;
+            }
+            nextPipe = pipe;
+            break;
+        }
+        if (!this.player) {
+            if(this.brain.decide([this.xPosition, this.yPosition, this.yVelocity, nextPipe.xPosition, nextPipe.height])) {
+                this.flap();
+            };
+        };
         this.draw();
     };
 
     checkCollision() {
         if(this.yPosition < 0 || this.yPosition > 1) { // Check if offscreen
-            console.log("Bird Collided!")
             return true;
         };
         for(let pipe of Game.pipes) {
             if (pipe.xPosition < 0.3) { // Reference only the pipes close infront / in the back
                 const yPosition = this.yPosition * gameCanvas.height;
-                const tenPercent = gameCanvas.height * 0.1;
+                const percentDif = gameCanvas.height * 0.125;
                 if (
-                (yPosition < (pipe.height - tenPercent) || yPosition > (pipe.height + tenPercent)) // If same Y Position
+                (yPosition < (pipe.pixelHeight - percentDif) || yPosition > (pipe.pixelHeight + percentDif)) // If same Y Position
                 && 
-                this.xPosition >= pipe.xPosition * gameCanvas.width  // Start x range of the pipe (xPosPipeStart < xPosBird < xPosPipeEnd)
+                this.xPosition * gameCanvas.width >= pipe.xPosition * gameCanvas.width  // Start x range of the pipe (xPosPipeStart < xPosBird < xPosPipeEnd)
                 && 
-                this.xPosition <= (pipe.xPosition * gameCanvas.width + (gameCanvas.width * 0.075)) // End x range of the pipe
+                this.xPosition * gameCanvas.width <= (pipe.xPosition * gameCanvas.width + (gameCanvas.width * 0.075)) // End x range of the pipe
                 ) { 
                     return true;
                 };
@@ -208,17 +258,27 @@ class Bird {
     };
 
     draw() {
-        this.xPosition = 0.25 * gameCanvas.width; 
+       
         ctx.beginPath();
         ctx.fillStyle = this.color;
         ctx.arc(
-            this.xPosition,
+            this.xPosition * gameCanvas.width,
             gameCanvas.height * this.yPosition,
             gameCanvas.width * 0.02 , // Radius
             0, // Start angle
             Math.PI * 2 // End Angle
         )
+        ctx.strokeStyle = 'black';
+        if (this.player) {
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = gameCanvas.width * 0.001;
+            ctx.lineWidth = gameCanvas.width * 0.005;
+        }
+        ctx.stroke();
+        
         ctx.fill();
+
+        ctx.closePath();
     };
 };
 
