@@ -7,10 +7,13 @@ gameCanvas.height = window.innerHeight;
 document.body.appendChild(gameCanvas);
 const ctx = gameCanvas.getContext("2d");
 const NUM_BIRDS = 1000;
+
+
 class Game {
    static pipes = [];
    static playerBird;
    static deadBirds = [];
+   static gameSpeed = 1;
     /*
    Instance Variables:
    birdGenerations -> Number of generations since the first
@@ -19,7 +22,6 @@ class Game {
    */
     constructor() {
         this.birdGenerations = 0;
-        this.gameSpeed = 1;
         this.bestBird = null;
         this.birds = [];
         document.addEventListener('keydown', (event) => {
@@ -27,28 +29,33 @@ class Game {
                 this.handleFlap();
             }
         });
-        
+
+        gameCanvas.addEventListener('touchstart', (event) => {
+            this.handleFlap();
+        });
     }
     handleFlap() {
         Game.playerBird.flap();
     }
-    updateSpeed(newSpeed) {
-        if(newSpeed < 0 ) {
-            return;
-        }
-        this.gameSpeed = newSpeed;
-    }
+
     
 
     newGeneration() {
         this.birdGenerations++;
         Game.pipes = [];
+        this.startTime = Date.now();
+        Game.gameSpeed = 1;
+        scale = 1;
+        newGenScaleFactor += 0.15; 
+        updateUI("generationAmount")
+        updateUI("timer")
 
         if(this.birdGenerations === 1) {
             for(let i = 0; i < NUM_BIRDS ; i++) {
                 this.birds.push(new Bird());
             };
             Game.playerBird = new Bird(true);
+            updateUI("birdAmount")
             return;
         }
 
@@ -67,9 +74,12 @@ class Game {
             this.birds.push(newBird)
         }
         this.birds.push(parents[0]) // Copy highest scorer from old gen
+        Game.playerBird = new Bird(true);
+        updateUI("birdAmount")
+
     };
 
-    continue() {
+    continue(frameScale) {
         if (this.birds.length === 0 && (!Game.playerBird || !Game.playerBird.alive)) { // Check to see if all birds have collided
             this.newGeneration();
             return;
@@ -79,13 +89,16 @@ class Game {
         if (Game.pipes.length === 0) {
             Game.pipes.push(new Pipe())
         };
-
-
+        updateUI("timer")
+        Game.gameSpeed += 0.0005 * frameScale
+        updateUI("gameSpeed");
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
        
         // Reassign width/height incase window resizes
         gameCanvas.width = window.innerWidth;
         gameCanvas.height = window.innerHeight;
+
+        const effectiveScale = frameScale * Game.gameSpeed;
 
         for(let i = 0; i < Game.pipes.length; i++) {
             if(Game.pipes[i].xPosition < -0.1) { // If offscreen
@@ -95,7 +108,7 @@ class Game {
             } else if (Game.pipes[i].positionCheck()) { // if it should create another pipe
                 Game.pipes.push(new Pipe);
             };
-            Game.pipes[i].update(); 
+            Game.pipes[i].update(effectiveScale); 
         };
 
         for (let i = 0; i < this.birds.length; i++) {
@@ -103,15 +116,16 @@ class Game {
                 Game.deadBirds.push(this.birds[i])
                 this.birds.splice(i, 1);
                 i--;
+                updateUI("birdAmount");
                 console.log(`Birds alive: ${this.birds.length}`)
                 continue;
             };
-            this.birds[i].update();
+            this.birds[i].update(effectiveScale);
         };
         if(Game.playerBird.checkCollision() || Game.playerBird.alive === false){
             Game.playerBird.alive = false;
         } else {
-            Game.playerBird.update()
+            Game.playerBird.update(effectiveScale)
         }
     };
 };
@@ -137,8 +151,8 @@ class Pipe {
         this.madeAnotherPipe = false; 
     };
 
-    update() {
-        this.xPosition -= 0.005; // Moves 0.5% across the x axis each frame.
+    update(effectiveScale) {
+        this.xPosition -= 0.005 * effectiveScale; // Moves 0.5% across the x axis each frame.
         this.drawOnCanvas();
     };
 
@@ -215,10 +229,10 @@ class Bird {
         }
     };
      
-    update() {
-        this.score++;
-        this.yVelocity += this.gravity;
-        this.yPosition += this.yVelocity;
+    update(effectiveScale) {
+        this.score += effectiveScale;
+        this.yVelocity += this.gravity * effectiveScale;
+        this.yPosition += this.yVelocity * effectiveScale;
         let nextPipe;
         for(let pipe of Game.pipes) {
             if(pipe.xPosition < 0.25) {
@@ -270,6 +284,7 @@ class Bird {
         )
         ctx.strokeStyle = 'black';
         if (this.player) {
+            ctx.fillStyle = 'black'
             ctx.shadowColor = this.color;
             ctx.shadowBlur = gameCanvas.width * 0.001;
             ctx.lineWidth = gameCanvas.width * 0.005;
@@ -282,7 +297,42 @@ class Bird {
     };
 };
 
+function updateUI(updateCase) {
+    let string;
+    switch(updateCase) {
+        case "timer": {
+            string = `Time Alive: ${((Date.now() - game.startTime) / 1000).toFixed(2)}s`;
+            break;
+        }
+        case "gameSpeed": {
+            string = `Game Speed: ${Game.gameSpeed.toFixed(2)}x`;
+            break;
+        }
+        case "birdAmount": {
+            string = `Birds Alive: ${game.birds.length}`;
+            break;
+        }
+        case "generationAmount": {
+            string = `Generation: ${game.birdGenerations}`
+            break;
+        }
+        default:
+            console.error("Shouldn't expect a new value...");
+    }
+    const id = updateCase;
+    if (id) {
+        document.getElementById(id).innerHTML = string;
+    }
+}
+
+
+
 const game = new Game();
-const gameLoop = setInterval(() => game.continue(), 1000 / 60); // 60 FPS (Ignores refresh rate of monitor)
+let scale = 1;
+let newGenScaleFactor = 1
+function loop() {
+    game.continue(scale * newGenScaleFactor)
+    scale += 0.0001;
+}
 
-
+const gameLoop = setInterval(() => loop(), 1000 / 60); // 60 FPS (Ignores refresh rate of monitor)
