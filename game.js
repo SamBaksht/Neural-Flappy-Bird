@@ -90,7 +90,9 @@ class Game {
             Game.pipes.push(new Pipe())
         };
         updateUI("timer")
-        Game.gameSpeed += 0.0005 * frameScale
+        if(Game.gameSpeed + 0.0005 * frameScale < 5) {
+            Game.gameSpeed += 0.0005 * frameScale;
+        }
         updateUI("gameSpeed");
         ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
        
@@ -98,7 +100,7 @@ class Game {
         gameCanvas.width = window.innerWidth;
         gameCanvas.height = window.innerHeight;
 
-        const effectiveScale = frameScale * Game.gameSpeed;
+        const effectiveScale = Game.gameSpeed;
 
         for(let i = 0; i < Game.pipes.length; i++) {
             if(Game.pipes[i].xPosition < -0.1) { // If offscreen
@@ -328,8 +330,8 @@ function updateUI(updateCase) {
 
 
 const game = new Game();
-let scale = 1;
-let newGenScaleFactor = 1
+let scale = 1; 
+let newGenScaleFactor = 1; // increases by 0.15 each generation
 function loop() {
     game.continue(scale * newGenScaleFactor)
     scale += 0.0001;
